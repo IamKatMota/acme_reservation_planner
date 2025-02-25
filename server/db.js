@@ -34,10 +34,16 @@ const createRestaurant = async (restaurantName)=>{
     return result.rows[0];
 
 };
-const createReservation = async (customerName, restaurantName, date, partyCount)=>{
+const createReservation = async (customer_id, restaurantName, date, partyCount)=>{
     const SQL = `
         INSERT INTO reservations(id, date, party_count, restaurant_id, customer_id ) 
-        VALUES($1, $2, $3, (SELECT id FROM restaurants WHERE name = $4), (SELECT id FROM customers WHERE name = $5))
+        VALUES(
+            $1, 
+            $2, 
+            $3, 
+            (SELECT id FROM restaurants WHERE name = $4),  --gets restaurant id by name
+            $5
+        )
     
         RETURNING *
     `
@@ -45,9 +51,9 @@ const createReservation = async (customerName, restaurantName, date, partyCount)
         uuid.v4(), 
         date, 
         partyCount, 
-        restaurantName, 
-        customerName]
-    );
+        restaurantName, //finds restaurant id from restaurant name
+        customer_id,
+    ]);
     return result.rows[0];
 
 };
@@ -67,14 +73,21 @@ const fetchRestaurants = async () => {
     const result = await client.query(SQL);
     return result.rows;
 }
-
-const destroyReservations = async (reservationId) => {
+const fetchReservations = async () => {
     const SQL = `
-        DELETE * FROM reservations
-        WHERE id = $1
+        SELECT * FROM reservations
+    `
+    const result = await client.query(SQL);
+    return result.rows;
+}
+//deletes reservation only if it belongs to a given customer
+const destroyReservations = async (reservation_id, customer_id) => {
+    const SQL = `
+        DELETE FROM reservations
+        WHERE id = $1 AND customer_id = $2
         RETURNING *
     `
-    const result = await client.query(SQL, [reservationId]);
+    const result = await client.query(SQL, [reservation_id, customer_id]);
     return result.rows[0];
 }
 
@@ -116,7 +129,8 @@ const init = async () => {
         console.log("restaurant created:" + name);
     });
 
-    await createReservation("Bob", "Nobu","2025-11-19", 2);
+    const luca = await createCustomer("Luca");
+    await createReservation(luca.id, "Nobu","2025-11-19", 2);
 
     console.log('db initialized')
 }
@@ -128,6 +142,7 @@ module.exports={
     createRestaurant,
     fetchCustomers,
     fetchRestaurants,
+    fetchReservations,
     destroyReservations
 
 }
